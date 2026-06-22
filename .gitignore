@@ -137,6 +137,12 @@ coverage.out
 *.test
 *.backup
 
+# AxonHub 桌面版本地构建产物
+/AxonHubDesktop.exe
+/Microsoft.Web.WebView2.Core.dll
+/Microsoft.Web.WebView2.WinForms.dll
+/WebView2Loader.dll
+
 .playwright-cli/
 
 # E2E testing artifacts

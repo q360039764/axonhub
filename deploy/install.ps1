@@ -162,6 +162,25 @@ if(-not $BinaryPath){ Write-Err 'axonhub.exe not found in archive'; exit 1 }
 $TargetBinary = Join-Path $BaseDir 'axonhub.exe'
 Copy-Item -Path $BinaryPath -Destination $TargetBinary -Force
 
+$ArchiveRoot = Split-Path -Parent $BinaryPath
+$DesktopFiles = @(
+  'desktop.bat',
+  'build-desktop.ps1',
+  'ensure-axonhub.ps1',
+  'start-hidden.vbs'
+)
+foreach($fileName in $DesktopFiles){
+  $sourceFile = Join-Path $ArchiveRoot $fileName
+  if(Test-Path -LiteralPath $sourceFile){
+    Copy-Item -Path $sourceFile -Destination (Join-Path $BaseDir $fileName) -Force
+  }
+}
+
+$DesktopSourceDir = Join-Path $ArchiveRoot 'desktop'
+if(Test-Path -LiteralPath $DesktopSourceDir){
+  Copy-Item -Path $DesktopSourceDir -Destination (Join-Path $BaseDir 'desktop') -Recurse -Force
+}
+
 # Create default config if missing
 $ConfigFile = Join-Path $BaseDir 'config.yml'
 if(-not (Test-Path $ConfigFile)){
@@ -216,3 +235,4 @@ Write-Host "  3. Stop AxonHub: stop.bat"
 Write-Host "  4. View logs: $BaseDir\axonhub.log (or logs\axonhub.log in config)"
 Write-Host "  5. Access web interface: http://localhost:$port"
 Write-Host "  6. Setup auto-start: setup.bat install-autostart"
+Write-Host "  7. Start desktop app: desktop.bat"

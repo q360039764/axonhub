@@ -87,6 +87,16 @@ archives:
         dst: restart.ps1
       - src: deploy/upgrade.ps1
         dst: upgrade.ps1
+      - src: deploy/setup.ps1
+        dst: setup.ps1
+      - src: deploy/build-desktop.ps1
+        dst: build-desktop.ps1
+      - src: deploy/ensure-axonhub.ps1
+        dst: ensure-axonhub.ps1
+      - src: deploy/start-hidden.vbs
+        dst: start-hidden.vbs
+      - src: deploy/desktop/AxonHubDesktop.cs
+        dst: desktop/AxonHubDesktop.cs
 
       - src: deploy/install.bat
         dst: install.bat
@@ -98,6 +108,10 @@ archives:
         dst: restart.bat
       - src: deploy/upgrade.bat
         dst: upgrade.bat
+      - src: deploy/setup.bat
+        dst: setup.bat
+      - src: deploy/desktop.bat
+        dst: desktop.bat
 
 brews:
   - name: axonhub
