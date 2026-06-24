@@ -9,6 +9,7 @@ This file provides guidance to AI coding assistants when working with code in th
 1. Do NOT run lint or build commands unless explicitly requested by the user.
 2. Do NOT restart the development server — it's already started and managed.
 3. All summary files should be stored in `.agent/summary` directory if available.
+4. Treat `looplj/axonhub` and the `upstream` remote as read-only. Never push to `upstream` or any remote URL owned by `looplj`; push only to the user's fork `q360039764/axonhub` through `origin` unless the user explicitly changes the target.
 
 ## Configuration
 
