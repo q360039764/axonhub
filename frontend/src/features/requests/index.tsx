@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -32,7 +32,6 @@ const REQUEST_FILTER_SEARCH_KEYS = {
 } as const;
 
 const REQUEST_CURSOR_SEARCH_KEYS = ['startCursor', 'endCursor', 'cursorDirection', 'cursorHistory'] as const;
-const REQUESTS_AUTO_REFRESH_STORAGE_KEY = 'requests-table-auto-refresh';
 
 type RequestSearchFilters = RequestTableFilters & {
   dateRange?: DateTimeRangeValue;
@@ -173,15 +172,6 @@ function clearRequestFilterSearch(draft: Record<string, unknown>) {
   });
 }
 
-function getStoredAutoRefresh() {
-  try {
-    const stored = localStorage.getItem(REQUESTS_AUTO_REFRESH_STORAGE_KEY);
-    return stored === null ? true : stored === 'true';
-  } catch {
-    return true;
-  }
-}
-
 function RequestsContent() {
   const navigate = useNavigate();
   const currentSearch = useRouterState({
@@ -196,16 +186,8 @@ function RequestsContent() {
     [currentSearch]
   );
   const debouncedModelIDFilter = useDebounce(modelIDFilter, 300);
-  // 默认开启请求日志自动刷新，并记住用户后续调整。
-  const [autoRefresh, setAutoRefresh] = useState(getStoredAutoRefresh);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(REQUESTS_AUTO_REFRESH_STORAGE_KEY, String(autoRefresh));
-    } catch {
-      // 存储写入失败时保持页面可用，不阻断请求日志列表。
-    }
-  }, [autoRefresh]);
+  // 请求日志数据量较大，默认关闭定时刷新，仅在用户主动开启时查询。
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   // Build where clause with filters
   const whereClause = (() => {

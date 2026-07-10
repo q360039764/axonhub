@@ -14,9 +14,6 @@ function Write-Err([string]$m){ Write-Host "[ERROR] $m" -ForegroundColor Red }
 $ServiceName = 'axonhub'
 $BaseDir = Join-Path $env:LOCALAPPDATA 'AxonHub'
 $BinaryPath = Join-Path $BaseDir 'axonhub.exe'
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$EnsureScriptPath = Join-Path $BaseDir 'ensure-axonhub.ps1'
-$LauncherPath = Join-Path $BaseDir 'start-hidden.vbs'
 $StartupFolder = [Environment]::GetFolderPath('Startup')
 $ShortcutPath = Join-Path $StartupFolder 'AxonHub.lnk'
 $TaskName = 'AxonHubAutoStart'
@@ -48,18 +45,11 @@ function Test-Admin {
     return $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Ensure-Dirs([string]$path) {
-    if (-not (Test-Path -LiteralPath $path)) {
-        New-Item -ItemType Directory -Force -Path $path | Out-Null
-    }
-}
-
 function Get-AutostartStatus {
     $status = @{
         StartupFolder = $false
         TaskScheduler = $false
         TaskEnabled = $false
-        LauncherReady = $false
     }
 
     # Check startup folder
@@ -76,33 +66,7 @@ function Get-AutostartStatus {
         }
     } catch {}
 
-    $status.LauncherReady = (Test-Path -LiteralPath $EnsureScriptPath) -and (Test-Path -LiteralPath $LauncherPath)
-
     return $status
-}
-
-function Install-LauncherFiles {
-    Write-Info "Installing hidden launcher files..."
-
-    Ensure-Dirs $BaseDir
-
-    $sourceEnsureScript = Join-Path $ScriptDir 'ensure-axonhub.ps1'
-    $sourceLauncher = Join-Path $ScriptDir 'start-hidden.vbs'
-
-    if (-not (Test-Path -LiteralPath $sourceEnsureScript)) {
-        Write-Err "Hidden launcher script not found at $sourceEnsureScript"
-        return $false
-    }
-    if (-not (Test-Path -LiteralPath $sourceLauncher)) {
-        Write-Err "Hidden launcher file not found at $sourceLauncher"
-        return $false
-    }
-
-    # Copy launcher files into the install directory so scheduled tasks do not depend on the extracted archive.
-    Copy-Item -Path $sourceEnsureScript -Destination $EnsureScriptPath -Force
-    Copy-Item -Path $sourceLauncher -Destination $LauncherPath -Force
-
-    return $true
 }
 
 function Install-StartupFolder {
@@ -114,14 +78,9 @@ function Install-StartupFolder {
         return $false
     }
 
-    if (-not (Install-LauncherFiles)) {
-        return $false
-    }
-
     $WshShell = New-Object -ComObject WScript.Shell
     $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-    $Shortcut.TargetPath = 'wscript.exe'
-    $Shortcut.Arguments = "`"$LauncherPath`""
+    $Shortcut.TargetPath = $BinaryPath
     $Shortcut.WorkingDirectory = $BaseDir
     $Shortcut.IconLocation = $BinaryPath
     $Shortcut.Save()
@@ -152,10 +111,6 @@ function Install-TaskScheduler {
         return $false
     }
 
-    if (-not (Install-LauncherFiles)) {
-        return $false
-    }
-
     if (-not (Test-Admin)) {
         Write-Warn "Administrator privileges required for Task Scheduler method"
         Write-Info "Attempting to elevate privileges..."
@@ -171,22 +126,15 @@ function Install-TaskScheduler {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
     } catch {}
 
-    $Action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$LauncherPath`"" -WorkingDirectory $BaseDir
-    $LogonTrigger = New-ScheduledTaskTrigger -AtLogOn
-    $WatchdogTrigger = New-ScheduledTaskTrigger `
-        -Once `
-        -At (Get-Date).Date `
-        -RepetitionInterval (New-TimeSpan -Minutes 5) `
-        -RepetitionDuration (New-TimeSpan -Days 3650)
+    $Action = New-ScheduledTaskAction -Execute $BinaryPath -WorkingDirectory $BaseDir
+    $Trigger = New-ScheduledTaskTrigger -AtLogOn
     $Principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
-    $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew
-    $Task = New-ScheduledTask -Action $Action -Trigger @($LogonTrigger, $WatchdogTrigger) -Principal $Principal -Settings $Settings -Description 'Start AxonHub hidden and keep it running.'
-    $Task.Settings.Hidden = $true
+    $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
     try {
-        Register-ScheduledTask -TaskName $TaskName -InputObject $Task -Force | Out-Null
+        Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
         Write-Success "Scheduled task '$TaskName' created successfully"
-        Write-Info "AxonHub will start automatically when you log in and will be checked every 5 minutes"
+        Write-Info "AxonHub will start automatically when you log in"
         return $true
     } catch {
         Write-Err "Failed to create scheduled task: $_"
@@ -232,7 +180,6 @@ function Show-Status {
     Write-Host "Autostart Status:"
     Write-Host "  Startup Folder:  $(if ($status.StartupFolder) { 'ENABLED' } else { 'DISABLED' })"
     Write-Host "  Task Scheduler:  $(if ($status.TaskScheduler) { if ($status.TaskEnabled) { 'ENABLED' } else { 'DISABLED (task exists but is disabled)' } } else { 'DISABLED' })"
-    Write-Host "  Hidden Launcher: $(if ($status.LauncherReady) { 'READY' } else { 'MISSING' })"
     Write-Host ""
 
     # Check if AxonHub is currently running
